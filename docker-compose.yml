@@ -1,0 +1,212 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: bmad_user
+      POSTGRES_PASSWORD: bmad_password
+      POSTGRES_DB: bmad_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/database/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bmad_user -d bmad_dev"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ChromaDB Vector Database
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - CHROMA_HOST_PORT=8000
+      - CHROMA_HOST_ADDR=0.0.0.0
+    volumes:
+      - chromadb_data:/chroma/chroma
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Teams Bot Service
+  teams-bot:
+    build:
+      context: ./services/teams-bot
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://bmad_user:bmad_password@postgres:5432/bmad_dev
+      - ENVIRONMENT=development
+      - SERVICE_NAME=teams-bot
+      - LOG_LEVEL=DEBUG
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    volumes:
+      - ./services/teams-bot:/app
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Query Orchestration Service
+  query-orchestration:
+    build:
+      context: ./services/query-orchestration
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://bmad_user:bmad_password@postgres:5432/bmad_dev
+      - ENVIRONMENT=development
+      - SERVICE_NAME=query-orchestration
+      - LOG_LEVEL=DEBUG
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    volumes:
+      - ./services/query-orchestration:/app
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Fast Q&A Service
+  fast-qa:
+    build:
+      context: ./services/fast-qa
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://bmad_user:bmad_password@postgres:5432/bmad_dev
+      - ENVIRONMENT=development
+      - SERVICE_NAME=fast-qa
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/fast-qa:/app
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Semantic Search Service
+  semantic-search:
+    build:
+      context: ./services/semantic-search
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://bmad_user:bmad_password@postgres:5432/bmad_dev
+      - ENVIRONMENT=development
+      - SERVICE_NAME=semantic-search
+      - LOG_LEVEL=DEBUG
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    volumes:
+      - ./services/semantic-search:/app
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Safety Classification Service
+  safety-classification:
+    build:
+      context: ./services/safety-classification
+      dockerfile: Dockerfile
+    ports:
+      - "8005:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://bmad_user:bmad_password@postgres:5432/bmad_dev
+      - ENVIRONMENT=development
+      - SERVICE_NAME=safety-classification
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/safety-classification:/app
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # User Context Service
+  user-context:
+    build:
+      context: ./services/user-context
+      dockerfile: Dockerfile
+    ports:
+      - "8006:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://bmad_user:bmad_password@postgres:5432/bmad_dev
+      - ENVIRONMENT=development
+      - SERVICE_NAME=user-context
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/user-context:/app
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Management API Service
+  management-api:
+    build:
+      context: ./services/management-api
+      dockerfile: Dockerfile
+    ports:
+      - "8007:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://bmad_user:bmad_password@postgres:5432/bmad_dev
+      - ENVIRONMENT=development
+      - SERVICE_NAME=management-api
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/management-api:/app
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Admin Web Dashboard
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8007
+      - VITE_ENVIRONMENT=development
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    command: npm run dev
+
+volumes:
+  postgres_data:
+    driver: local
+  chromadb_data:
+    driver: local
+
+networks:
+  default:
+    driver: bridge

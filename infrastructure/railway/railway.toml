@@ -1,0 +1,60 @@
+[build]
+builder = "DOCKERFILE"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[environments.production]
+name = "bmad-production"
+
+[environments.staging]
+name = "bmad-staging"
+
+# PostgreSQL Database Configuration
+[environments.production.database]
+engine = "postgresql"
+version = "15"
+
+[environments.staging.database]
+engine = "postgresql"
+version = "15"
+
+# Service definitions will be added per service
+[services.teams-bot]
+name = "bmad-teams-bot"
+source = "services/teams-bot"
+
+[services.query-orchestration] 
+name = "bmad-query-orchestration"
+source = "services/query-orchestration"
+
+[services.fast-qa]
+name = "bmad-fast-qa"
+source = "services/fast-qa"
+
+[services.semantic-search]
+name = "bmad-semantic-search"
+source = "services/semantic-search"
+
+[services.safety-classification]
+name = "bmad-safety-classification"
+source = "services/safety-classification"
+
+[services.user-context]
+name = "bmad-user-context"
+source = "services/user-context"
+
+[services.manual-processing]
+name = "bmad-manual-processing"
+source = "services/manual-processing"
+
+[services.management-api]
+name = "bmad-management-api"
+source = "services/management-api"
+
+[services.web]
+name = "bmad-web"
+source = "web"

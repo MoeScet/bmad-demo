@@ -1,0 +1,94 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [ develop ]
+  workflow_dispatch:
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    environment: staging
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Railway CLI
+      run: |
+        curl -fsSL https://railway.app/install.sh | sh
+        echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
+    - name: Deploy services to Railway staging
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+      run: |
+        # Deploy each service to staging environment
+        for service in services/*/; do
+          if [ -f "$service/Dockerfile" ]; then
+            service_name=$(basename "$service")
+            echo "Deploying $service_name to staging..."
+            
+            cd "$service"
+            railway login --token $RAILWAY_TOKEN
+            railway deploy --service "bmad-$service_name-staging"
+            cd ..
+          fi
+        done
+
+    - name: Run staging smoke tests
+      env:
+        STAGING_API_URL: ${{ secrets.STAGING_API_URL }}
+        STAGING_API_KEY: ${{ secrets.STAGING_API_KEY }}
+      run: |
+        # Wait for deployment
+        sleep 30
+        
+        # Run basic health checks
+        python scripts/smoke-test.py --env staging
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    environment: staging
+    needs: deploy-backend
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: 'web/package-lock.json'
+    
+    - name: Install and build
+      env:
+        VITE_API_URL: ${{ secrets.STAGING_API_URL }}
+        VITE_ENVIRONMENT: staging
+      run: |
+        cd web
+        npm ci
+        npm run build
+    
+    - name: Deploy to staging
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+      run: |
+        cd web
+        railway login --token $RAILWAY_TOKEN
+        railway deploy --service bmad-web-staging
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: always()
+    
+    steps:
+    - name: Notify team
+      env:
+        TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        DEPLOY_STATUS: ${{ needs.deploy-backend.result == 'success' && needs.deploy-frontend.result == 'success' && 'SUCCESS' || 'FAILED' }}
+      run: |
+        curl -H "Content-Type: application/json" -d '{
+          "text": "🚀 Staging Deployment ${{ env.DEPLOY_STATUS }}: ${{ github.sha }}"
+        }' $TEAMS_WEBHOOK
