@@ -1,0 +1,46 @@
+# BMAD + Claude Code agent directories
+.bmad-core/
+.claude/
+
+# Claude Code local settings (optional)
+.claude/settings.local.json
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+
+# Virtual environments
+.env
+.venv/
+env/
+venv/
+pip-wheel-metadata/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# VS Code settings
+.vscode/
+*.code-workspace
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Model artifacts and cache
+*.pt
+*.pth
+*.h5
+*.ckpt
+*.onnx
+*.joblib
+*.pkl
+.cache/
+logs/
+runs/
