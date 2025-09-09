@@ -41,7 +41,7 @@ def correlation_id():
 @pytest.fixture
 def mock_config():
     """Mock configuration for testing."""
-    from config.base import TeamsConfig
+    from config.settings import TeamsConfig
     return TeamsConfig(
         SERVICE_NAME="teams-bot",
         SERVICE_VERSION="test",
@@ -49,5 +49,7 @@ def mock_config():
         DATABASE_URL="postgresql+asyncpg://test:test@localhost:5432/bmad_test",
         TEAMS_BOT_APP_ID="00000000-0000-0000-0000-000000000000",
         TEAMS_BOT_APP_PASSWORD="test-password",
-        TEAMS_BOT_TENANT_ID="00000000-0000-0000-0000-000000000000",
+        TEAMS_BOT_WEBHOOK_URL="https://test.example.com/webhook",
+        QUERY_ORCHESTRATION_URL="http://localhost:8001",
+        USER_CONTEXT_URL="http://localhost:8002",
     )

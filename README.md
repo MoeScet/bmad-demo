@@ -45,13 +45,23 @@ A Microsoft Teams-integrated troubleshooting assistant for washing machine repai
 
 4. **Start development services:**
    ```bash
-   # Start individual services
+   # Start Teams Bot service (currently the only implemented service)
    cd services/teams-bot
-   source venv/bin/activate  # Windows: venv\Scripts\activate
-   uvicorn src.main:app --reload --port 8001
+   source venv/Scripts/activate  # Windows: venv\Scripts\activate
    
-   # Or use Docker Compose for full stack
-   docker-compose up -d
+   # Required environment variables (ensure these are in .env file):
+   # DATABASE_URL=postgresql+asyncpg://test:test@localhost:5432/bmad_dev
+   # TEAMS_BOT_APP_ID=your-teams-app-id
+   # TEAMS_BOT_APP_PASSWORD=your-bot-password
+   # TEAMS_BOT_WEBHOOK_URL=https://your-webhook-url
+   # QUERY_ORCHESTRATION_URL=http://localhost:8002
+   # USER_CONTEXT_URL=http://localhost:8003
+   
+   # Start the service (runs on port 8000 by default)
+   python -m src.main
+   
+   # Test the service
+   curl http://localhost:8000/health
    ```
 
 ### Project Structure
@@ -87,6 +97,7 @@ BMAD/
 | **Backend** | Python + FastAPI | 3.11 / 0.104.1 | High-performance async API services |
 | **Database** | PostgreSQL | 15.4 | Primary data storage with JSON support |
 | **Vector DB** | ChromaDB | 0.4.15 | Semantic search and embeddings |
+| **HTTP Client** | aiohttp | 3.8.0+ | Async HTTP operations for Bot Framework |
 | **Frontend** | React + TypeScript | 18.2.0 / 5.0+ | Admin dashboard interface |
 | **Cloud Platform** | Railway | Latest | Container deployment and PostgreSQL |
 | **CI/CD** | GitHub Actions | Latest | Automated testing and deployment |
@@ -104,16 +115,23 @@ BMAD/
 ### Testing Strategy
 
 ```bash
-# Run unit tests for specific service
+# Run unit tests for Teams Bot service
 cd services/teams-bot
+source venv/Scripts/activate  # Windows: venv\Scripts\activate
 pytest tests/ -v --cov=src
 
-# Run integration tests
+# Run integration tests (requires PostgreSQL)
 pytest tests/integration/ -v
+
+# Run configuration tests
+pytest tests/integration/test_config.py -v
 
 # Run linting and type checking
 ruff check src/
 mypy src/ --ignore-missing-imports
+
+# Run smoke tests (check which services are running)
+python scripts/smoke-test.py
 ```
 
 ### Environment Configuration
@@ -197,10 +215,16 @@ PostgreSQL database shared across services with proper connection pooling.
 
 ## 📚 API Documentation
 
-Once services are running, API documentation is available at:
-- Teams Bot: `http://localhost:8001/docs`
-- Query Orchestration: `http://localhost:8002/docs`
-- Fast Q&A: `http://localhost:8003/docs`
+**Currently Available Services:**
+- **Teams Bot:** `http://localhost:8000/docs` ✅ IMPLEMENTED
+  - Health: `GET /health`
+  - Webhook: `POST /api/messages`
+  - Root: `GET /`
+
+**Planned Services (Not Yet Implemented):**
+- Query Orchestration: `http://localhost:8002/docs` ⏳ PLANNED
+- Fast Q&A: `http://localhost:8003/docs` ⏳ PLANNED
+- Semantic Search: `http://localhost:8004/docs` ⏳ PLANNED
 
 ## 🤝 Contributing
 
@@ -218,12 +242,25 @@ Once services are running, API documentation is available at:
 
 ## 📈 Project Status
 
-- ✅ Infrastructure setup and configuration
-- 🔄 Teams bot implementation
-- 🔄 Query orchestration service
-- 📋 Semantic search integration
-- 📋 Safety classification system
-- 📋 Admin dashboard development
+**Service Implementation Progress: 1/8 (12.5%)**
+
+### ✅ Completed Stories:
+- **Story 1.1:** Infrastructure setup and configuration (✅ COMPLETE)
+- **Story 1.2:** Teams bot implementation (✅ COMPLETE & RUNNING)
+
+### 📋 Planned Stories:
+- **Story 1.3:** Query orchestration service (⏳ NEXT)
+- **Story 1.4:** Semantic search integration (📋 PLANNED)
+- **Story 1.5:** Safety classification system (📋 PLANNED)
+- **Story 1.6:** User context service (📋 PLANNED)
+- **Story 1.7:** Manual processing service (📋 PLANNED)
+- **Story 1.8:** Management API service (📋 PLANNED)
+
+### 🧪 Testing Status:
+- ✅ Teams Bot service: Fully tested and operational
+- ✅ Infrastructure tests: Configuration and database schema ready
+- ⚠️ Integration tests: Require PostgreSQL setup
+- ✅ Smoke tests: 2/16 endpoints passing (Teams Bot only)
 
 ---
 
