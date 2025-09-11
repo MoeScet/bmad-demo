@@ -1,8 +1,9 @@
 name: Deploy to Staging
 
 on:
-  push:
-    branches: [ develop ]
+  # Temporarily disabled until infrastructure scripts are ready
+  # push:
+  #   branches: [ develop ]
   workflow_dispatch:
 
 jobs:

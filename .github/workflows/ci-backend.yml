@@ -21,13 +21,14 @@ jobs:
         python-version: ['3.11']
         service:
           - teams-bot
-          - query-orchestration
           - fast-qa
-          - semantic-search
-          - safety-classification
-          - user-context
-          - manual-processing
-          - management-api
+          # TODO: Enable as services are implemented
+          # - query-orchestration
+          # - semantic-search
+          # - safety-classification
+          # - user-context
+          # - manual-processing
+          # - management-api
 
     services:
       postgres:
@@ -62,20 +63,33 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cd services/${{ matrix.service }}
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        if [ -d "services/${{ matrix.service }}" ]; then
+          cd services/${{ matrix.service }}
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+        else
+          echo "Service ${{ matrix.service }} not implemented yet, skipping..."
+          exit 0
+        fi
 
     - name: Run linting with ruff
       run: |
-        cd services/${{ matrix.service }}
-        ruff check src/ --format=github
+        if [ -d "services/${{ matrix.service }}" ]; then
+          cd services/${{ matrix.service }}
+          ruff check src/ --format=github
+        else
+          echo "Service ${{ matrix.service }} not implemented yet, skipping linting..."
+        fi
 
     - name: Run type checking
       run: |
-        cd services/${{ matrix.service }}
-        if [ -f "src" ]; then
-          python -m mypy src/ --ignore-missing-imports
+        if [ -d "services/${{ matrix.service }}" ]; then
+          cd services/${{ matrix.service }}
+          if [ -d "src" ]; then
+            python -m mypy src/ --ignore-missing-imports
+          fi
+        else
+          echo "Service ${{ matrix.service }} not implemented yet, skipping type checking..."
         fi
 
     - name: Run tests
@@ -83,9 +97,15 @@ jobs:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/bmad_test
         ENVIRONMENT: test
       run: |
-        cd services/${{ matrix.service }}
-        if [ -d "tests" ]; then
-          pytest tests/ -v --cov=src --cov-report=xml
+        if [ -d "services/${{ matrix.service }}" ]; then
+          cd services/${{ matrix.service }}
+          if [ -d "tests" ]; then
+            pytest tests/ -v --cov=src --cov-report=xml
+          else
+            echo "No tests directory found for ${{ matrix.service }}, skipping tests..."
+          fi
+        else
+          echo "Service ${{ matrix.service }} not implemented yet, skipping tests..."
         fi
 
     - name: Upload coverage
