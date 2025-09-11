@@ -1,0 +1,20 @@
+schema: 1
+story: '1.3'
+gate: CONCERNS
+status_reason: 'SQLite implementation differs from PostgreSQL requirements; search functionality limited without full-text search capabilities.'
+reviewer: 'Quinn'
+updated: '2025-09-11T16:45:00Z'
+top_issues:
+  - id: 'ARCH-001'
+    severity: medium
+    finding: 'SQLite implementation uses JSON fields instead of PostgreSQL arrays and TSVECTOR'
+    suggested_action: 'Migrate to PostgreSQL before production for full search functionality'
+  - id: 'TEST-001'
+    severity: medium
+    finding: 'Integration tests fail due to PostgreSQL-specific search functions in SQLite'
+    suggested_action: 'Use PostgreSQL for integration testing or implement SQLite-compatible search'
+  - id: 'REQ-001'
+    severity: low
+    finding: 'Original AC specified PostgreSQL but implementation uses SQLite for development'
+    suggested_action: 'Document SQLite vs PostgreSQL compatibility in production deployment guide'
+waiver: { active: false }
