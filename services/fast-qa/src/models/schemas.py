@@ -127,6 +127,18 @@ class QAEntryListResponse(BaseModel):
     total_pages: int = Field(..., ge=0)
 
 
+class QAFeedbackRequest(BaseModel):
+    """Request model for Q&A solution feedback."""
+    
+    solution_id: uuid.UUID = Field(..., description="ID of the Q&A entry")
+    is_helpful: bool = Field(..., description="Whether the solution was helpful")
+    user_context: Optional[str] = Field(
+        None, 
+        max_length=200, 
+        description="Optional context about the feedback"
+    )
+
+
 class APIResponse(BaseModel):
     """Standard API response wrapper."""
     

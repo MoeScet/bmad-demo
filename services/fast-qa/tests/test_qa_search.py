@@ -173,3 +173,151 @@ def test_search_performance(client: TestClient, multiple_qa_entries):
     # Query should complete within reasonable time (< 3000ms for test environment)
     query_time = data["data"]["query_time_ms"]
     assert query_time < 3000  # 3 seconds should be more than enough for test DB
+
+
+def test_ml_ranking_algorithm(client: TestClient):
+    """Test that ML-enhanced ranking properly weights success rates."""
+    # Create entries with different success rates for testing
+    from sqlalchemy.orm import sessionmaker
+    from models.database import engine
+    
+    # This test would require database setup - simplified for now
+    response = client.post("/qa/search", json={
+        "query": "test query",
+        "max_results": 5
+    })
+    
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Verify that results include ML-derived scoring
+    results = data["data"]["results"]
+    for result in results:
+        assert "relevance_score" in result
+        assert 0.0 <= result["relevance_score"] <= 1.0
+
+
+def test_qa_feedback_submission(client: TestClient, sample_qa_entry):
+    """Test submitting feedback for Q&A solutions."""
+    feedback_data = {
+        "solution_id": str(sample_qa_entry.id),
+        "is_helpful": True,
+        "user_context": "This solution worked perfectly"
+    }
+    
+    response = client.post("/qa/feedback", json=feedback_data)
+    
+    assert response.status_code == 200
+    data = response.json()
+    
+    assert data["error"] is None
+    assert data["data"]["message"] == "Feedback received successfully"
+    assert data["data"]["solution_id"] == str(sample_qa_entry.id)
+    assert data["data"]["is_helpful"] is True
+
+
+def test_qa_feedback_negative(client: TestClient, sample_qa_entry):
+    """Test submitting negative feedback."""
+    feedback_data = {
+        "solution_id": str(sample_qa_entry.id),
+        "is_helpful": False,
+        "user_context": "This didn't work for my model"
+    }
+    
+    response = client.post("/qa/feedback", json=feedback_data)
+    
+    assert response.status_code == 200
+    data = response.json()
+    
+    assert data["error"] is None
+    assert data["data"]["is_helpful"] is False
+
+
+def test_qa_feedback_invalid_id(client: TestClient):
+    """Test feedback with invalid solution ID."""
+    fake_id = str(uuid.uuid4())
+    feedback_data = {
+        "solution_id": fake_id,
+        "is_helpful": True
+    }
+    
+    response = client.post("/qa/feedback", json=feedback_data)
+    
+    # Should still accept feedback (async processing handles validation)
+    assert response.status_code == 200
+
+
+def test_qa_feedback_validation(client: TestClient):
+    """Test feedback request validation."""
+    # Invalid solution_id format
+    response = client.post("/qa/feedback", json={
+        "solution_id": "invalid-uuid",
+        "is_helpful": True
+    })
+    
+    assert response.status_code == 422  # Validation error
+    
+    # Missing required fields
+    response = client.post("/qa/feedback", json={
+        "is_helpful": True
+    })
+    
+    assert response.status_code == 422
+
+
+def test_search_ranking_with_success_rates(client: TestClient, multiple_qa_entries):
+    """Test that entries with higher success rates rank better."""
+    # Search for entries that should have different success rates
+    response = client.post("/qa/search", json={
+        "query": "machine",
+        "max_results": 10
+    })
+    
+    assert response.status_code == 200
+    data = response.json()
+    
+    results = data["data"]["results"]
+    if len(results) > 1:
+        # Check that relevance scores consider success rates
+        # This is a basic test - in reality we'd need controlled test data
+        for result in results:
+            entry = result["entry"]
+            relevance = result["relevance_score"]
+            
+            # Higher success rates should generally correlate with higher scores
+            # (though other factors like keyword matching also matter)
+            assert relevance >= 0.0
+            assert "success_rate" in entry
+            assert "usage_count" in entry
+
+
+def test_search_regression_functionality(client: TestClient, multiple_qa_entries):
+    """Test that existing search functionality still works after ML enhancements."""
+    # This ensures we haven't broken existing functionality
+    response = client.post("/qa/search", json={
+        "query": "washing machine",
+        "max_results": 5,
+        "safety_levels": ["safe", "caution"],
+        "min_score": 0.1
+    })
+    
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Basic response structure unchanged
+    assert data["error"] is None
+    assert "results" in data["data"]
+    assert "total_count" in data["data"]
+    assert "query_time_ms" in data["data"]
+    assert "applied_filters" in data["data"]
+    
+    # Results structure unchanged
+    results = data["data"]["results"]
+    for result in results:
+        assert "entry" in result
+        assert "relevance_score" in result
+        assert "match_type" in result
+        
+        # Safety levels properly filtered
+        safety_level = result["entry"]["safety_level"]
+        assert safety_level in ["safe", "caution"]

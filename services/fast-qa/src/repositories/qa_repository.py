@@ -15,6 +15,7 @@ import structlog
 from models.qa_entry import QAEntry
 from models.schemas import QAEntryCreate, QAEntryUpdate, QASearchRequest
 from services.content_validator import content_validator
+from config.settings import fast_qa_config
 
 logger = structlog.get_logger(__name__)
 
@@ -57,33 +58,47 @@ class QARepository:
             search_conditions = []
             search_query = search_request.query.strip().lower()
             
-            # Full-text search using TSVECTOR
+            # Search logic compatible with both PostgreSQL and SQLite
             if len(search_query) >= 3:
-                # Create search vector from query
-                ts_query = func.plainto_tsquery('english', search_query)
-                search_conditions.append(
-                    QAEntry.search_vector.op('@@')(ts_query)
-                )
+                try:
+                    # Try PostgreSQL full-text search first
+                    ts_query = func.plainto_tsquery('english', search_query)
+                    search_conditions.append(
+                        QAEntry.search_vector.op('@@')(ts_query)
+                    )
+                    
+                    # Keyword array matching for PostgreSQL
+                    search_conditions.append(
+                        func.array_to_string(QAEntry.keywords, ' ').ilike(f'%{search_query}%')
+                    )
+                except Exception:
+                    # Fallback for SQLite - just basic text search
+                    pass
                 
-                # Keyword array matching
-                search_conditions.append(
-                    func.array_to_string(QAEntry.keywords, ' ').ilike(f'%{search_query}%')
-                )
-                
-                # Basic text matching as fallback
+                # Basic text matching (works for both PostgreSQL and SQLite)
                 search_conditions.append(
                     or_(
                         QAEntry.question.ilike(f'%{search_query}%'),
                         QAEntry.answer.ilike(f'%{search_query}%')
                     )
                 )
+                
+                # SQLite-compatible keyword search using JSON
+                try:
+                    search_conditions.append(
+                        func.lower(func.json_extract(QAEntry.keywords, '$')).contains(search_query.lower())
+                    )
+                except Exception:
+                    # Skip if JSON functions not available
+                    pass
             
             if search_conditions:
                 combined_conditions = or_(*search_conditions)
                 query = query.where(combined_conditions)
                 count_query = count_query.where(combined_conditions)
             
-            # Order by relevance (success rate, usage count, then creation date)
+            # Use simple database ordering, ML ranking happens in application layer
+            # This ensures compatibility with both PostgreSQL and SQLite
             query = query.order_by(
                 desc(QAEntry.success_rate),
                 desc(QAEntry.usage_count),
@@ -129,7 +144,7 @@ class QARepository:
         """Get Q&A entry by ID."""
         try:
             result = await self.session.execute(
-                select(QAEntry).where(QAEntry.id == entry_id)
+                select(QAEntry).where(QAEntry.id == str(entry_id))
             )
             return result.scalar_one_or_none()
         except Exception as e:
@@ -328,6 +343,75 @@ class QARepository:
                 error=str(e)
             )
             # Don't raise - usage tracking is not critical
+
+    async def update_success_rate(
+        self, 
+        entry_id: uuid.UUID, 
+        is_helpful: bool,
+        correlation_id: Optional[str] = None
+    ) -> None:
+        """
+        Update success rate based on user feedback using exponential moving average.
+        
+        Uses a decay factor to give more weight to recent feedback while maintaining
+        historical context for ML-based ranking.
+        """
+        try:
+            # Get current entry to calculate new success rate
+            entry = await self.get_entry_by_id(entry_id)
+            if not entry:
+                logger.warning(
+                    "Cannot update success rate - entry not found",
+                    correlation_id=correlation_id,
+                    service="fast-qa",
+                    entry_id=str(entry_id)
+                )
+                return
+            
+            # Calculate new success rate using exponential moving average
+            # Alpha (decay factor) gives more weight to recent feedback
+            alpha = 0.1  # Adjust based on desired responsiveness
+            current_rate = float(entry.success_rate)
+            feedback_value = 1.0 if is_helpful else 0.0
+            
+            # Handle initial case where success_rate is 0
+            if current_rate == 0.0 and entry.usage_count == 0:
+                new_success_rate = feedback_value
+            else:
+                new_success_rate = alpha * feedback_value + (1 - alpha) * current_rate
+            
+            # Update success rate and usage count
+            await self.session.execute(
+                update(QAEntry)
+                .where(QAEntry.id == str(entry_id))
+                .values(
+                    success_rate=round(new_success_rate, 3),
+                    usage_count=QAEntry.usage_count + 1,
+                    updated_at=datetime.utcnow()
+                )
+            )
+            await self.session.commit()
+            
+            logger.info(
+                "Updated success rate from feedback",
+                correlation_id=correlation_id,
+                service="fast-qa",
+                entry_id=str(entry_id),
+                is_helpful=is_helpful,
+                old_rate=current_rate,
+                new_rate=round(new_success_rate, 3)
+            )
+            
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(
+                "Failed to update success rate",
+                correlation_id=correlation_id,
+                service="fast-qa",
+                entry_id=str(entry_id),
+                error=str(e)
+            )
+            # Don't raise - feedback processing should not fail user requests
 
     async def _update_search_vector(self, entry_id: uuid.UUID) -> None:
         """Update search vector for full-text search."""

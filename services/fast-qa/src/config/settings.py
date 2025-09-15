@@ -40,6 +40,10 @@ class FastQAConfig(BaseSettings):
     FAST_QA_TIMEOUT: float = Field(default=3.0, description="Fast Q&A operation timeout in seconds")
     FAST_QA_MAX_RESULTS: int = Field(default=10, description="Maximum search results to return")
     FAST_QA_MIN_SCORE: float = Field(default=0.1, description="Minimum relevance score threshold")
+    
+    # ML Ranking Configuration
+    FAST_QA_ML_RANKING_ENABLED: bool = Field(default=True, description="Enable ML-based search ranking")
+    FAST_QA_ML_RANKING_WEIGHT: float = Field(default=0.6, description="Weight for ML score vs keyword relevance")
 
     class Config:
         env_file = ".env"

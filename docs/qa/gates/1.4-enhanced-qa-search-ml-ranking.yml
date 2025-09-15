@@ -1,0 +1,20 @@
+schema: 1
+story: '1.4'
+gate: CONCERNS
+status_reason: 'Feedback mechanism working but search ranking disabled due to SQLite compatibility issues with PostgreSQL-specific full-text search.'
+reviewer: 'Quinn'
+updated: '2025-09-15T07:30:00Z'
+top_issues:
+  - id: 'ARCH-001'
+    severity: medium
+    finding: 'Search endpoint fails with SQLite due to PostgreSQL-specific operators (@@ and plainto_tsquery)'
+    suggested_action: 'Implement database-agnostic search or use PostgreSQL for full ML ranking demonstration'
+  - id: 'TEST-001'
+    severity: low
+    finding: 'Core search functionality cannot be tested due to database compatibility'
+    suggested_action: 'Set up PostgreSQL environment to test complete ML ranking workflow'
+  - id: 'REQ-001'
+    severity: low
+    finding: 'ML ranking feature flag works but search integration incomplete due to database issues'
+    suggested_action: 'Complete search integration testing with PostgreSQL before production'
+waiver: { active: false }
