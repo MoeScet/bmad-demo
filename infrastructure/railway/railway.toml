@@ -58,3 +58,7 @@ source = "services/management-api"
 [services.web]
 name = "bmad-web"
 source = "web"
+
+[services.chromadb]
+name = "bmad-chromadb"
+source = "infrastructure/chromadb"

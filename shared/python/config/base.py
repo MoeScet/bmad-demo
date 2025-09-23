@@ -143,14 +143,19 @@ class VectorDatabaseConfig(BaseConfig):
 def load_config(config_class: type[BaseConfig] = BaseConfig) -> BaseConfig:
     """
     Load configuration with environment-specific overrides.
-    
+
     Args:
         config_class: Configuration class to instantiate
-        
+
     Returns:
         Configured instance
-        
+
     Raises:
         ValueError: If configuration validation fails
     """
     return config_class()
+
+
+def get_settings() -> VectorDatabaseConfig:
+    """Get vector database configuration settings."""
+    return VectorDatabaseConfig()
