@@ -1,0 +1,1 @@
+"""Manual Processing Service"""
